@@ -1,2 +1,2 @@
-# N1-ImmortalWRT
-github工作流bulids n1 immortalwrt
+# N1-ImmortalWRT docker build
+github工作流build n1 immortalwrt
