@@ -1,0 +1,113 @@
+name: N1 Immortalwrt Docker Build
+
+on:
+  workflow_dispatch:    # 手动触发
+  schedule:             # 自动触发（每月15号、30号 北京时间03:30）
+    - cron: '30 19 15,30 * *'  # UTC时间=北京时间-8小时 → 对应北京时间03:30
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: immortalwrt
+
+    steps:
+      # 1️⃣ 检出仓库
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ 清理旧的 release 目录
+      - name: Clean old release folder
+        run: |
+          echo "🧹 清理旧的 release/immortalwrt 目录..."
+          rm -rf release/immortalwrt || true
+          mkdir -p release/immortalwrt
+
+      # 3️⃣ 准备构建环境
+      - name: Prepare environment
+        run: |
+          sed -i 's/\r$//' docker-build.sh build.sh || true
+          chmod +x docker-build.sh build.sh
+          mkdir -p bin files
+          sudo chmod -R 777 bin files
+
+      # 4️⃣ 拉取 immortalwrt ImageBuilder 镜像
+      - name: Pull immortalwrt ImageBuilder
+        run: docker pull immortalwrt/imagebuilder:armsr-armv8-openwrt-24.10
+
+      # 5️⃣ 构建固件
+      - name: Build firmware
+        run: ./docker-build.sh
+
+      # 6️⃣ 打包固件文件
+      - name: Package immortalwrt firmware
+        run: |
+          echo "📦 打包固件文件..."
+          mkdir -p release/immortalwrt
+          cp -r bin/targets/armsr/armv8/* release/immortalwrt/ 2>/dev/null || cp -r bin/* release/immortalwrt/ || true
+          echo "✅ release/immortalwrt/ 目录内容如下："
+          ls -lh release/immortalwrt || true
+
+      # 7️⃣ 上传到 GitHub Actions Artifacts
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-images
+          path: immortalwrt/release/immortalwrt/
+          if-no-files-found: warn
+          compression-level: 6
+
+      # 8️⃣ 获取北京时间
+      - name: Get Beijing Time
+        id: time
+        run: |
+          export TZ=Asia/Shanghai
+          echo "datetime=$(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_OUTPUT
+
+      # 9️⃣ 获取构建文件列表
+      - name: List built files
+        id: list_files
+        run: |
+          {
+            echo 'files<<EOF'
+            ls -1 release/immortalwrt/ || echo "无输出文件"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      # 🔟 发布到 GitHub Release
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: always()
+        with:
+          tag_name: N1-immortalwrt
+          name: "N1 immortalwrt"
+          body: |
+            ✅ N1 immortalwrt 固件自动构建完成！
+
+            - 分支：${{ github.ref_name }}
+            - 构建编号：${{ github.run_number }}
+            - 发布时间（北京时间）：${{ steps.time.outputs.datetime }}
+
+            以下为本次构建的固件文件：
+            ```
+            ${{ steps.list_files.outputs.files }}
+            ```
+          files: immortalwrt/release/immortalwrt/**/*
+          overwrite_files: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 11️⃣ 清理旧版本，只保留最新 1 个
+      - name: Clean up old immortalwrt releases
+        if: github.ref == 'refs/heads/main'
+        uses: dev-drprasad/delete-older-releases@v0.3.3
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 1
+          delete_tag_pattern: "N1-immortalwrt*"
+          delete_prerelease_only: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
