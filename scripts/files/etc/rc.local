@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# 自动选择物理网卡
+IFACE=$(ls /sys/class/net | grep -E 'eth0|eth1' | head -n 1)
+
+uci set network.lan.device="$IFACE"
+uci commit network
+
+exit 0
