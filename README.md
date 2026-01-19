@@ -1,3 +1,13 @@
+运行（macvlan 方案）
+docker run -d \
+  --name immortalwrt \
+  --network macnet \
+  --privileged \
+  --restart unless-stopped \
+  ghcr.io/adjlevis/n1-immortalwrt:latest
+
+
+
 一键脚本（macvlan + shim + ImmortalWrt 容器）执行run-immortalwrt.sh
 使用方法
 chmod +x run-immortalwrt.sh
