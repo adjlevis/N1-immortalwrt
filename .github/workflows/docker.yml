@@ -1,4 +1,4 @@
-name: Build ImmortalWrt Docker Image
+name: n1 ImmortalWrt Docker Image
 
 on:
   push:
